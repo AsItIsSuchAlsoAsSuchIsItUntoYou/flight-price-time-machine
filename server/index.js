@@ -73,5 +73,34 @@ app.get('/snapshots', async (req, res) => {
   }
 });
 
+app.post('/alerts', async (req, res) => {
+  const { email, origin, destination, target_price } = req.body;
+  try {
+    const result = await db.query(
+      `INSERT INTO price_alerts (email, origin, destination, target_price)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [email, origin, destination, target_price]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/alerts', async (req, res) => {
+  const { origin, destination } = req.query;
+  try {
+    const result = await db.query(
+      `SELECT * FROM price_alerts WHERE origin = $1 AND destination = $2`,
+      [origin, destination]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

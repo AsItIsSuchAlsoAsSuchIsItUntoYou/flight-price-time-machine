@@ -1,6 +1,7 @@
 const amadeus = require('./amadeus');
 const db = require('./db');
 const TRACKED_ROUTES = require('./routes');
+const sendPriceAlert = require('./emailService');
 
 const snapshotPrices = async () => {
   console.log(`[cron] Running price snapshot at ${new Date().toISOString()}`);
@@ -22,7 +23,6 @@ const snapshotPrices = async () => {
         continue;
       }
 
-      // Find the lowest price among the offers
       const lowest = offers.reduce((min, offer) => {
         const price = parseFloat(offer.price.total);
         return price < min.price
@@ -37,6 +37,27 @@ const snapshotPrices = async () => {
       );
 
       console.log(`[cron] Saved $${lowest.price} for ${route.origin} → ${route.destination}`);
+
+      // Check if any alerts should be triggered
+      const alerts = await db.query(
+        `SELECT * FROM price_alerts WHERE origin = $1 AND destination = $2 AND target_price >= $3`,
+        [route.origin, route.destination, lowest.price]
+      );
+
+      for (const alert of alerts.rows) {
+        try {
+          await sendPriceAlert({
+            email: alert.email,
+            origin: route.origin,
+            destination: route.destination,
+            price: lowest.price,
+            targetPrice: alert.target_price,
+          });
+          console.log(`[cron] Alert email sent to ${alert.email}`);
+        } catch (emailErr) {
+          console.error(`[cron] Failed to send email to ${alert.email}:`, emailErr.message);
+        }
+      }
 
     } catch (err) {
       console.error(`[cron] Failed for ${route.origin} → ${route.destination}:`, err.message);
