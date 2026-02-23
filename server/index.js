@@ -7,11 +7,11 @@ const amadeus = require('./amadeus');
 const cron = require('node-cron');
 const snapshotPrices = require('./snapshotService');
 
-// Run once immediately on server start so you get data right away
+// Run once on startup
 snapshotPrices();
 
-// Then run every day at 8am
-cron.schedule('0 8 * * *', () => {
+// Then run every 6 hours
+cron.schedule('0 */6 * * *', () => {
   snapshotPrices();
 });
 
@@ -98,6 +98,33 @@ app.get('/alerts', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/routes', async (req, res) => {
+  try {
+    const result = await db.query(
+      `SELECT * FROM tracked_routes ORDER BY tier ASC, origin ASC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/routes', async (req, res) => {
+  const { origin, destination, tier } = req.body;
+  try {
+    const result = await db.query(
+      `INSERT INTO tracked_routes (origin, destination, tier)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (origin, destination) DO NOTHING
+       RETURNING *`,
+      [origin.toUpperCase(), destination.toUpperCase(), tier || 2]
+    );
+    res.json(result.rows[0] || { message: 'Route already exists' });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
