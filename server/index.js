@@ -29,5 +29,22 @@ app.get('/test-amadeus', async (req, res) => {
   }
 });
 
+const db = require('./db');
+
+app.post('/snapshots', async (req, res) => {
+  const { origin, destination, departure_date, price, carrier_code } = req.body;
+  try {
+    const result = await db.query(
+      `INSERT INTO price_snapshots (origin, destination, departure_date, price, carrier_code)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [origin, destination, departure_date, price, carrier_code]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
